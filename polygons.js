@@ -251,12 +251,13 @@ class PhysicsPolygons {
     this.physicsWidth = 800;
     this.physicsHeight = 500;
     
-    // Create ground (bottom wall)
+    // Create ground (bottom wall) - extended 15px on each side
+    const groundWidth = this.physicsWidth + 30; // Add 30px (15px on each side)
     const ground = Bodies.rectangle(
-      800 / 2 + offsetX, 
-      500 + offsetY, 
-      800, 
-      50, 
+      this.physicsWidth / 2 + offsetX, // Keep the center position the same
+      this.physicsHeight + offsetY, 
+      groundWidth, 
+      25,
       {
         isStatic: true,
         render: {
@@ -270,12 +271,12 @@ class PhysicsPolygons {
       }
     );
     
-    // Create left wall
+    // Create left wall - reduced thickness from 50 to 25
     const leftWall = Bodies.rectangle(
       offsetX,
-      500 / 2 + offsetY,
-      50,
-      500,
+      this.physicsHeight / 2 + offsetY,
+      25,
+      this.physicsHeight,
       {
         isStatic: true,
         render: {
@@ -286,12 +287,12 @@ class PhysicsPolygons {
       }
     );
     
-    // Create right wall
+    // Create right wall - reduced thickness from 50 to 25
     const rightWall = Bodies.rectangle(
-      800 + offsetX,
-      500 / 2 + offsetY,
-      50,
-      500,
+      this.physicsWidth + offsetX,
+      this.physicsHeight / 2 + offsetY,
+      25,
+      this.physicsHeight,
       {
         isStatic: true,
         render: {
@@ -302,7 +303,7 @@ class PhysicsPolygons {
       }
     );
     
-    // Add walls to the world
+    // Add walls to the world (including ground)
     Composite.add(this.engine.world, [ground, leftWall, rightWall]);
   }
 
@@ -310,6 +311,13 @@ class PhysicsPolygons {
     // Handle key down events
     document.addEventListener('keydown', (event) => {
       const key = event.key.toLowerCase();
+      
+      // Only process specific keys: a, s, d, f, g, h, j, k
+      const allowedKeys = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k'];
+      if (!allowedKeys.includes(key)) return;
+      
+      // Prevent default browser behavior for these keys
+      event.preventDefault();
       
       // Skip if already processing this key
       if (this.keysPressed[key]) return;
@@ -323,8 +331,8 @@ class PhysicsPolygons {
       // Add a growing polygon for physics
       this.addGrowingPolygon(sides, key);
       
-      // Also place a note on the staff for all keys except spacebar
-      if (key !== ' ' && key in this.staffManager.keyNotes) {
+      // Also place a note on the staff for all valid keys
+      if (key in this.staffManager.keyNotes) {
         this.staffManager.placeNoteOnStaff(key, this.audioManager);
         this.bodyCount++;
       }
@@ -333,6 +341,13 @@ class PhysicsPolygons {
     // Handle key up events
     document.addEventListener('keyup', (event) => {
       const key = event.key.toLowerCase();
+      
+      // Only process specific keys: a, s, d, f, g, h, j, k
+      const allowedKeys = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k'];
+      if (!allowedKeys.includes(key)) return;
+      
+      // Prevent default browser behavior for these keys
+      event.preventDefault();
       
       // Skip if we weren't tracking this key
       if (!this.keysPressed[key]) return;
@@ -517,10 +532,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const physicsWidth = 800;
   const physicsHeight = 500;
   
-  const polygons = new PhysicsPolygons(containerWidth, containerHeight);
-  
-  // Override the createBoundaries method to use fixed dimensions
-  polygons.createBoundaries = function() {
+  // Override the createBoundaries method BEFORE creating the instance
+  PhysicsPolygons.prototype.createBoundaries = function() {
     const { Bodies, Composite } = this.Matter;
     
     // Calculate position to center the boundaries in the larger canvas
@@ -533,12 +546,13 @@ document.addEventListener('DOMContentLoaded', () => {
     this.physicsWidth = physicsWidth;
     this.physicsHeight = physicsHeight;
     
-    // Create ground (bottom wall)
+    // Create ground (bottom wall) - extended 15px on each side
+    const groundWidth = physicsWidth + 25; // Add 30px (15px on each side)
     const ground = Bodies.rectangle(
-      physicsWidth / 2 + offsetX, 
-      physicsHeight + offsetY, 
-      physicsWidth, 
-      50, 
+      physicsWidth / 2 + offsetX, // Keep the center position the same
+      physicsHeight + offsetY -12, 
+      groundWidth, 
+      25,
       {
         isStatic: true,
         render: {
@@ -552,11 +566,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     );
     
-    // Create left wall
+    // Create left wall - reduced thickness from 50 to 25
     const leftWall = Bodies.rectangle(
       offsetX,
       physicsHeight / 2 + offsetY,
-      50,
+      25,
       physicsHeight,
       {
         isStatic: true,
@@ -568,11 +582,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     );
     
-    // Create right wall
+    // Create right wall - reduced thickness from 50 to 25
     const rightWall = Bodies.rectangle(
       physicsWidth + offsetX,
       physicsHeight / 2 + offsetY,
-      50,
+      25,
       physicsHeight,
       {
         isStatic: true,
@@ -584,11 +598,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     );
     
-    // Add walls to the world
+    // Add walls to the world (including ground)
     Composite.add(this.engine.world, [ground, leftWall, rightWall]);
   };
   
-  // Override the addGrowingPolygon method to spawn within boundaries
+  // Now create the instance after overriding the method
+  const polygons = new PhysicsPolygons(containerWidth, containerHeight);
+  
+  // Override addGrowingPolygon after instance creation
   polygons.addGrowingPolygon = function(sides, key) {
     const { Bodies, Composite } = this.Matter;
     
@@ -648,7 +665,4 @@ document.addEventListener('DOMContentLoaded', () => {
     
     return polygon;
   };
-  
-  // Call createBoundaries to set up the fixed-size boundaries
-  polygons.createBoundaries();
 }); 
