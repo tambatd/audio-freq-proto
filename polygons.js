@@ -87,16 +87,16 @@ class StaffManager {
     this.maxNoteX = 740;
     this.notes = []; // Add an array to track all notes
     
-    // Map keys to notes (A-K)
+    // Map keys to notes (A-K) - Restructured so 'a' is C note
     this.keyNotes = {
-      'a': 0, // E
-      's': 1, // F
-      'd': 2, // G
-      'f': 3, // A
-      'g': 4, // B
-      'h': 5, // C
-      'j': 6, // D
-      'k': 7  // E (higher)
+      'a': 5, // C
+      's': 6, // D
+      'd': 7, // E
+      'f': 0, // E (lower)
+      'g': 1, // F
+      'h': 2, // G
+      'j': 3, // A
+      'k': 4  // B
     };
     
     // Enhance staff visibility
@@ -226,7 +226,7 @@ class PhysicsPolygons {
     Render.run(this.render);
   }
 
-  // Static properties
+  // Static properties - Updated to ensure keys map directly to number of sides
   static keySides = {
     'a': 3, // triangle
     's': 4, // square
@@ -241,11 +241,21 @@ class PhysicsPolygons {
   createBoundaries() {
     const { Bodies, Composite } = this.Matter;
     
+    // Calculate position to center the boundaries in the larger canvas
+    const offsetX = (this.containerWidth - 800) / 2;
+    const offsetY = (this.containerHeight - 500) / 2;
+    
+    // Store these offsets for use in other methods
+    this.boundaryOffsetX = offsetX;
+    this.boundaryOffsetY = offsetY;
+    this.physicsWidth = 800;
+    this.physicsHeight = 500;
+    
     // Create ground (bottom wall)
     const ground = Bodies.rectangle(
-      this.containerWidth / 2, 
-      this.containerHeight, 
-      this.containerWidth, 
+      800 / 2 + offsetX, 
+      500 + offsetY, 
+      800, 
       50, 
       {
         isStatic: true,
@@ -262,10 +272,10 @@ class PhysicsPolygons {
     
     // Create left wall
     const leftWall = Bodies.rectangle(
-      0,
-      this.containerHeight / 2,
+      offsetX,
+      500 / 2 + offsetY,
       50,
-      this.containerHeight,
+      500,
       {
         isStatic: true,
         render: {
@@ -278,10 +288,10 @@ class PhysicsPolygons {
     
     // Create right wall
     const rightWall = Bodies.rectangle(
-      this.containerWidth,
-      this.containerHeight / 2,
+      800 + offsetX,
+      500 / 2 + offsetY,
       50,
-      this.containerHeight,
+      500,
       {
         isStatic: true,
         render: {
@@ -307,14 +317,8 @@ class PhysicsPolygons {
       // Mark key as pressed
       this.keysPressed[key] = true;
       
-      let sides;
-      if (key in PhysicsPolygons.keySides) {
-        // If it's one of our mapped keys, use the predefined number of sides
-        sides = PhysicsPolygons.keySides[key];
-      } else {
-        // For any other key, generate a random number of sides between 3 and 10
-        sides = Math.floor(Math.random() * 8) + 3;
-      }
+      // All keys start with triangles (3 sides)
+      const sides = 3;
       
       // Add a growing polygon for physics
       this.addGrowingPolygon(sides, key);
@@ -359,22 +363,31 @@ class PhysicsPolygons {
   addGrowingPolygon(sides, key) {
     const { Bodies, Composite } = this.Matter;
     
-    // Calculate 25% inward for the walls
-    const inset = this.containerWidth * 0.25;
-    
     // Initial size
     const initialSize = 5;
     
-    // Random x position (keeping within the walls)
-    const minX = inset + 50;
-    const maxX = this.containerWidth - inset - 50;
-    const xPos = minX + Math.random() * (maxX - minX);
+    // Determine spawn position based on current body count
+    let xPos, yPos;
     
-    // Random y position (in top half of screen)
-    const yPos = 50 + Math.random() * (this.containerHeight / 2);
+    if (this.bodyCount % 3 === 0) {
+      // Spawn from top
+      xPos = this.boundaryOffsetX + Math.random() * this.physicsWidth;
+      yPos = this.boundaryOffsetY + 50;
+    } else if (this.bodyCount % 3 === 1) {
+      // Spawn from right side
+      xPos = this.boundaryOffsetX + this.physicsWidth - 50;
+      yPos = this.boundaryOffsetY + Math.random() * (this.physicsHeight / 2);
+    } else {
+      // Spawn from left side
+      xPos = this.boundaryOffsetX + 50;
+      yPos = this.boundaryOffsetY + Math.random() * (this.physicsHeight / 2);
+    }
+    
+    // Get the number of sides from the key mapping
+    const polygonSides = key in PhysicsPolygons.keySides ? PhysicsPolygons.keySides[key] : 3;
     
     // Create initial polygon vertices
-    const vertices = this.createPolygonVertices(sides, initialSize);
+    const vertices = this.createPolygonVertices(polygonSides, initialSize);
     
     // Create static polygon body that won't move
     const polygon = Bodies.fromVertices(xPos, yPos, [vertices], {
@@ -393,15 +406,16 @@ class PhysicsPolygons {
     // Store the growing polygon info
     this.growingPolygons[key] = {
       body: polygon,
-      sides: sides,
+      sides: polygonSides,
       size: initialSize,
       x: xPos,
       y: yPos,
-      growRate: 0.5 // Size increase per frame
+      growRate: 0.5, // Size increase per frame
+      startTime: Date.now() // Track when we started growing
     };
     
     // Play initial sound
-    this.audioManager.playTone(sides, 0.5);
+    this.audioManager.playTone(polygonSides, 0.5);
     
     return polygon;
   }
@@ -417,7 +431,7 @@ class PhysicsPolygons {
     // Remove the old body
     Composite.remove(this.engine.world, info.body);
     
-    // Create new vertices with increased size
+    // Create new vertices with increased size but keeping the same sides count
     const newVertices = this.createPolygonVertices(info.sides, info.size);
     
     // Create new body with updated size
@@ -499,6 +513,142 @@ document.addEventListener('DOMContentLoaded', () => {
   const containerWidth = container.clientWidth;
   const containerHeight = container.clientHeight;
   
-  // Create the main application instance
-  new PhysicsPolygons(containerWidth, containerHeight);
+  // Create the main application instance with fixed physics boundaries
+  const physicsWidth = 800;
+  const physicsHeight = 500;
+  
+  const polygons = new PhysicsPolygons(containerWidth, containerHeight);
+  
+  // Override the createBoundaries method to use fixed dimensions
+  polygons.createBoundaries = function() {
+    const { Bodies, Composite } = this.Matter;
+    
+    // Calculate position to center the boundaries in the larger canvas
+    const offsetX = (containerWidth - physicsWidth) / 2;
+    const offsetY = (containerHeight - physicsHeight) / 2;
+    
+    // Store these offsets for use in other methods
+    this.boundaryOffsetX = offsetX;
+    this.boundaryOffsetY = offsetY;
+    this.physicsWidth = physicsWidth;
+    this.physicsHeight = physicsHeight;
+    
+    // Create ground (bottom wall)
+    const ground = Bodies.rectangle(
+      physicsWidth / 2 + offsetX, 
+      physicsHeight + offsetY, 
+      physicsWidth, 
+      50, 
+      {
+        isStatic: true,
+        render: {
+          fillStyle: 'transparent',
+          strokeStyle: 'white',
+          lineWidth: 1
+        },
+        collisionFilter: {
+          group: 1
+        }
+      }
+    );
+    
+    // Create left wall
+    const leftWall = Bodies.rectangle(
+      offsetX,
+      physicsHeight / 2 + offsetY,
+      50,
+      physicsHeight,
+      {
+        isStatic: true,
+        render: {
+          fillStyle: 'transparent',
+          strokeStyle: 'white',
+          lineWidth: 1
+        }
+      }
+    );
+    
+    // Create right wall
+    const rightWall = Bodies.rectangle(
+      physicsWidth + offsetX,
+      physicsHeight / 2 + offsetY,
+      50,
+      physicsHeight,
+      {
+        isStatic: true,
+        render: {
+          fillStyle: 'transparent',
+          strokeStyle: 'white',
+          lineWidth: 1
+        }
+      }
+    );
+    
+    // Add walls to the world
+    Composite.add(this.engine.world, [ground, leftWall, rightWall]);
+  };
+  
+  // Override the addGrowingPolygon method to spawn within boundaries
+  polygons.addGrowingPolygon = function(sides, key) {
+    const { Bodies, Composite } = this.Matter;
+    
+    // Initial size
+    const initialSize = 5;
+    
+    // Determine spawn position based on current body count
+    let xPos, yPos;
+    
+    if (this.bodyCount % 3 === 0) {
+      // Spawn from top
+      xPos = this.boundaryOffsetX + Math.random() * this.physicsWidth;
+      yPos = this.boundaryOffsetY + 50;
+    } else if (this.bodyCount % 3 === 1) {
+      // Spawn from right side
+      xPos = this.boundaryOffsetX + this.physicsWidth - 50;
+      yPos = this.boundaryOffsetY + Math.random() * (this.physicsHeight / 2);
+    } else {
+      // Spawn from left side
+      xPos = this.boundaryOffsetX + 50;
+      yPos = this.boundaryOffsetY + Math.random() * (this.physicsHeight / 2);
+    }
+    
+    // Get the number of sides from the key mapping
+    const polygonSides = key in PhysicsPolygons.keySides ? PhysicsPolygons.keySides[key] : 3;
+    
+    // Create initial polygon vertices
+    const vertices = this.createPolygonVertices(polygonSides, initialSize);
+    
+    // Create static polygon body that won't move
+    const polygon = Bodies.fromVertices(xPos, yPos, [vertices], {
+      isStatic: true,
+      render: {
+        fillStyle: 'transparent',
+        strokeStyle: 'white',
+        lineWidth: 1
+      }
+    });
+    
+    // Add to world
+    Composite.add(this.engine.world, polygon);
+    this.bodyCount++;
+    
+    // Store the growing polygon info
+    this.growingPolygons[key] = {
+      body: polygon,
+      sides: polygonSides,
+      size: initialSize,
+      x: xPos,
+      y: yPos,
+      growRate: 0.5, // Size increase per frame
+      startTime: Date.now() // Track when we started growing
+    };
+    
+    // Play initial sound
+    this.audioManager.playTone(polygonSides, 0.5);
+    
+    return polygon;
+  };
+  
+  // Call createBoundaries to set up the fixed-size boundaries
+  polygons.createBoundaries();
 }); 
